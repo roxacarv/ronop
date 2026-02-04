@@ -6,6 +6,7 @@ import zipfile
 import io
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image, ImageTk
 
 class FrameRearrangeWindow(ctk.CTkToplevel):
@@ -76,6 +77,10 @@ class FrameRearrangeWindow(ctk.CTkToplevel):
         if not output_file:
             return
         
+        if os.path.exists(output_file):
+            if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
+                return
+        
         try:
             zip_buffer = io.BytesIO()
             with zipfile.ZipFile(zip_buffer, "w") as zip_file:
@@ -93,9 +98,10 @@ class FrameRearrangeWindow(ctk.CTkToplevel):
             messagebox.showerror("Erro", f"Falha ao criar ZIP: {e}")
 
 
-class VideoToImagesTab(ctk.CTkFrame):
+class VideoToImagesTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def __init__(self, master):
         super().__init__(master)
+        TkinterDnD.DnDWrapper.__init__(self) # Initialize DnDWrapper explicitly
         self.video_path = None
         self.temp_dir = None
         self.frames_data = [] # List of dicts: {"image": PIL.Image, "name": str}
@@ -120,6 +126,18 @@ class VideoToImagesTab(ctk.CTkFrame):
 
         self.scroll = ctk.CTkScrollableFrame(self, label_text="Selecione os quadros clicando neles")
         self.scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        # DnD Support
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.handle_drop)
+
+    def handle_drop(self, event):
+        file_path = event.data
+        if file_path.startswith('{') and file_path.endswith('}'):
+            file_path = file_path[1:-1]
+        self.video_path = file_path
+        self.status_label.configure(text=os.path.basename(file_path))
+        self.extract_frames()
 
     def load_video(self):
         file = filedialog.askopenfilename(filetypes=[("Vídeos/GIFs", "*.mp4 *.gif *.mov *.avi *.webm"), ("Todos", "*.*")])
@@ -149,7 +167,7 @@ class VideoToImagesTab(ctk.CTkFrame):
             # Comando FFmpeg para extrair quadros
             # %04d.png para ter nomes ordenados
             cmd = [
-                "ffmpeg", "-i", self.video_path,
+                "ffmpeg", "-y", "-i", self.video_path,
                 "-vf", f"fps={fps}",
                 os.path.join(self.temp_dir, "frame_%04d.png")
             ]

@@ -3,3 +3,4 @@ darkdetect==0.8.0
 packaging==25.0
 pillow==12.1.0
 PyMuPDF==1.26.7
+tkinterdnd2-universal==1.7.3

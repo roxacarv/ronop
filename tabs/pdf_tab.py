@@ -4,6 +4,7 @@ import zipfile
 import io
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image, ImageTk
 
 class RearrangeWindow(ctk.CTkToplevel):
@@ -86,6 +87,10 @@ class RearrangeWindow(ctk.CTkToplevel):
         if not output_file:
             return
         
+        if os.path.exists(output_file):
+            if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
+                return
+        
         try:
             doc = fitz.open(self.pdf_path)
             new_doc = fitz.open()
@@ -103,6 +108,10 @@ class RearrangeWindow(ctk.CTkToplevel):
         output_file = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
         if not output_file:
             return
+
+        if os.path.exists(output_file):
+            if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
+                return
         
         try:
             doc = fitz.open(self.pdf_path)
@@ -159,9 +168,10 @@ class ZoomModal(ctk.CTkToplevel):
             self.destroy()
 
 
-class PDFSplitTab(ctk.CTkFrame):
+class PDFSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def __init__(self, master):
         super().__init__(master)
+        TkinterDnD.DnDWrapper.__init__(self)
         self.pdf_file_path = None
         self.selected_indices = []
         self.thumbnail_frames = {}
@@ -178,6 +188,56 @@ class PDFSplitTab(ctk.CTkFrame):
 
         self.pdf_scroll = ctk.CTkScrollableFrame(self, label_text="Selecione as páginas clicando nelas")
         self.pdf_scroll.pack(fill="both", expand=True, padx=20, pady=(0, 20))
+
+        # DnD Support
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.handle_drop)
+
+    def handle_drop(self, event):
+        file_path = event.data
+        if file_path.startswith('{') and file_path.endswith('}'):
+            file_path = file_path[1:-1]
+        
+        # Manually load the PDF
+        self.pdf_file_path = file_path
+        self.selected_indices = []
+        self.pdf_status_label.configure(text=os.path.basename(file_path))
+        self.btn_next_pdf.configure(state="disabled")
+        
+        for widget in self.pdf_scroll.winfo_children():
+            widget.destroy()
+        self.thumbnail_frames = {}
+        
+        # Re-trigger load logic (mimic load_pdf_for_split but with specific path)
+        try:
+            import fitz
+            from PIL import Image, ImageTk
+            doc = fitz.open(file_path)
+            cols = 4
+            for i in range(len(doc)):
+                page = doc.load_page(i)
+                pix = page.get_pixmap(matrix=fitz.Matrix(0.15, 0.15))
+                img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                photo = ImageTk.PhotoImage(img)
+                
+                f = ctk.CTkFrame(self.pdf_scroll, width=130, height=180, border_width=0)
+                f.grid(row=i // cols, column=i % cols, padx=10, pady=10)
+                f.grid_propagate(False)
+                
+                l = ctk.CTkLabel(f, image=photo, text="")
+                l.image = photo
+                l.pack(expand=True, fill="both", padx=5, pady=5)
+                
+                ctk.CTkLabel(f, text=f"Pág {i+1}", font=("Arial", 10)).pack(pady=(0, 5))
+                
+                l.bind("<Button-1>", lambda e, idx=i: self.toggle_page(idx))
+                f.bind("<Button-1>", lambda e, idx=i: self.toggle_page(idx))
+                l.bind("<Double-Button-1>", lambda e, idx=i: self.show_page_zoom(idx))
+                f.bind("<Double-Button-1>", lambda e, idx=i: self.show_page_zoom(idx))
+                self.thumbnail_frames[i] = f
+            doc.close()
+        except Exception as e:
+            messagebox.showerror("Erro", f"Erro ao abrir PDF: {e}")
 
     def load_pdf_for_split(self):
         file = filedialog.askopenfilename(filetypes=[("Arquivos PDF", "*.pdf")])

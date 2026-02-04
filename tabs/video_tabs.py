@@ -2,10 +2,12 @@ import os
 import subprocess
 import customtkinter as ctk
 from tkinter import filedialog, messagebox
+from tkinterdnd2 import TkinterDnD, DND_FILES
 
-class VideoSplitTab(ctk.CTkFrame):
+class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def __init__(self, master):
         super().__init__(master)
+        TkinterDnD.DnDWrapper.__init__(self)
         self.split_file_var = ctk.StringVar()
         self.start_time_var = ctk.StringVar()
         self.end_time_var = ctk.StringVar()
@@ -23,12 +25,23 @@ class VideoSplitTab(ctk.CTkFrame):
 
         ctk.CTkButton(self, text="Dividir vídeo", command=self.split_video).pack(pady=15)
 
+        # DnD Support
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.handle_drop)
+
+    def handle_drop(self, event):
+        file_path = event.data
+        if file_path.startswith('{') and file_path.endswith('}'):
+            file_path = file_path[1:-1]
+        self.load_video_metadata(file_path)
+
     def load_video_for_split(self):
         file = filedialog.askopenfilename(filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")])
-        if not file:
-            return
-        self.split_file_var.set(file)
+        if file:
+            self.load_video_metadata(file)
 
+    def load_video_metadata(self, file):
+        self.split_file_var.set(file)
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
@@ -62,7 +75,7 @@ class VideoSplitTab(ctk.CTkFrame):
             if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
                 return
 
-        cmd = ["ffmpeg", "-i", input_file, "-ss", start, "-to", end, "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", output_file]
+        cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start, "-to", end, "-c:v", "libx264", "-c:a", "aac", "-strict", "experimental", output_file]
         try:
             subprocess.run(cmd, check=True)
             messagebox.showinfo("Sucesso", f"Vídeo salvo em:\n{output_file}")
@@ -70,9 +83,10 @@ class VideoSplitTab(ctk.CTkFrame):
             messagebox.showerror("Erro", "Falha ao dividir o vídeo.")
 
 
-class VideoJoinTab(ctk.CTkFrame):
+class VideoJoinTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def __init__(self, master):
         super().__init__(master)
+        TkinterDnD.DnDWrapper.__init__(self)
         self.join_files = []
 
         ctk.CTkLabel(self, text="Selecione os vídeos para juntar:").pack(pady=10)
@@ -82,6 +96,23 @@ class VideoJoinTab(ctk.CTkFrame):
         self.join_listbox.pack(pady=10)
 
         ctk.CTkButton(self, text="Juntar vídeos", command=self.join_videos).pack(pady=10)
+
+        # DnD Support
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.handle_drop)
+
+    def handle_drop(self, event):
+        data = event.data
+        # Parse multiple files (handling braces for paths with spaces)
+        import re
+        files = re.findall(r'\{(.*?)\}|(\S+)', data)
+        parsed_files = [f[0] if f[0] else f[1] for f in files]
+        
+        if parsed_files:
+            self.join_files.extend(parsed_files)
+            self.join_listbox.delete("1.0", "end")
+            for f in self.join_files:
+                self.join_listbox.insert("end", f + "\n")
 
     def add_join_files(self):
         files = filedialog.askopenfilenames(filetypes=[("Vídeos MP4", "*.mp4")])
@@ -109,7 +140,7 @@ class VideoJoinTab(ctk.CTkFrame):
             for video in self.join_files:
                 f.write(f"file '{os.path.abspath(video)}'\n")
 
-        cmd = ["ffmpeg", "-f", "concat", "-safe", "0", "-i", list_file, "-c", "copy", output_file]
+        cmd = ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", list_file, "-c", "copy", output_file]
         try:
             subprocess.run(cmd, check=True)
             os.remove(list_file)
@@ -118,9 +149,10 @@ class VideoJoinTab(ctk.CTkFrame):
             messagebox.showerror("Erro", "Falha ao juntar os vídeos.")
 
 
-class VideoConvertTab(ctk.CTkFrame):
+class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def __init__(self, master):
         super().__init__(master)
+        TkinterDnD.DnDWrapper.__init__(self)
         self.convert_file_var = ctk.StringVar()
         self.convert_start_var = ctk.StringVar(value="00:00:00")
         self.convert_end_var = ctk.StringVar()
@@ -142,12 +174,23 @@ class VideoConvertTab(ctk.CTkFrame):
 
         ctk.CTkButton(self, text="Converter", command=self.convert_video).pack(pady=15)
 
+        # DnD Support
+        self.drop_target_register(DND_FILES)
+        self.dnd_bind('<<Drop>>', self.handle_drop)
+
+    def handle_drop(self, event):
+        file_path = event.data
+        if file_path.startswith('{') and file_path.endswith('}'):
+            file_path = file_path[1:-1]
+        self.load_video_metadata(file_path)
+
     def load_video_for_convert(self):
         file = filedialog.askopenfilename(filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")])
-        if not file:
-            return
-        self.convert_file_var.set(file)
+        if file:
+            self.load_video_metadata(file)
 
+    def load_video_metadata(self, file):
+        self.convert_file_var.set(file)
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
@@ -192,7 +235,7 @@ class VideoConvertTab(ctk.CTkFrame):
             if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
                 return
 
-        cmd = ["ffmpeg", "-i", input_file, "-ss", start, "-to", end]
+        cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start, "-to", end]
         if output_format == "GIF":
             cmd.extend(["-vf", "fps=10,scale=480:-1:flags=lanczos", "-loop", "0"])
         elif output_format == "WebM":
