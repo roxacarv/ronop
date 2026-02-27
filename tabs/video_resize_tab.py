@@ -7,10 +7,12 @@ from PIL import Image, ImageTk
 import tempfile
 
 class VideoResizeTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self)
+        self.config_manager = config_manager
         self.input_file = ""
+        self.last_dir = ""
         self.video_width = 0
         self.video_height = 0
         self.temp_frame_path = ""
@@ -195,17 +197,23 @@ class VideoResizeTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             file_path = file_path[1:-1]
         
         self.input_file = file_path
+        self.last_dir = os.path.dirname(file_path)
         self.get_video_info()
         self.extract_frame()
         self.center_crop()
         self.update_preview()
 
     def load_video(self):
-        file = filedialog.askopenfilename(filetypes=[("Vídeos", "*.mp4 *.mkv *.mov *.avi"), ("Todos os arquivos", "*.*")])
+        initial_dir = self.config_manager.get_default_folder("Redimensionar (Crop)") if self.config_manager else ""
+        file = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("Vídeos", "*.mp4 *.mkv *.mov *.avi"), ("Todos os arquivos", "*.*")]
+        )
         if not file:
             return
         
         self.input_file = file
+        self.last_dir = os.path.dirname(file)
         self.get_video_info()
         self.extract_frame()
         self.center_crop()
@@ -333,7 +341,12 @@ class VideoResizeTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
              if not messagebox.askyesno("Aviso", "A área de corte excede as dimensões do vídeo. Deseja continuar?"):
                  return
 
-        output_file = filedialog.asksaveasfilename(defaultextension=".mp4", filetypes=[("MP4 files", "*.mp4")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Redimensionar (Crop)") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".mp4", 
+            filetypes=[("MP4 files", "*.mp4")]
+        )
         if not output_file:
             return
 

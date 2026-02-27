@@ -5,34 +5,43 @@ from tabs.pdf_tab import PDFSplitTab
 from tabs.video_to_images_tab import VideoToImagesTab
 from tabs.video_resize_tab import VideoResizeTab
 
+from config_manager import ConfigManager
+from tabs.config_tab import ConfigTab
+
 class FFmpegGUI(ctk.CTk, TkinterDnD.DnDWrapper):
     def __init__(self):
         super().__init__()
         self.TkdndVersion = TkinterDnD._require(self)
         self.title("🎬 FFmpeg Toolkit")
-        self.geometry("750x550")
-        ctk.set_appearance_mode("dark")
+        self.geometry("750x650") # Slightly taller for config
+        
+        self.config_manager = ConfigManager()
+        
+        # Apply initial theme
+        ctk.set_appearance_mode(self.config_manager.get_theme())
         ctk.set_default_color_theme("blue")
 
         # Tabs
         self.tabview = ctk.CTkTabview(self)
         self.tabview.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Initialize tabs as frames
+        # Initialize tabs labels
         self.split_tab = self.tabview.add("Dividir Vídeo")
         self.join_tab = self.tabview.add("Juntar Vídeos")
         self.convert_tab = self.tabview.add("Converter Formatos")
         self.movie_to_img_tab = self.tabview.add("Vídeo -> Imagens")
         self.resize_tab = self.tabview.add("Redimensionar (Crop)")
         self.pdf_tab = self.tabview.add("Dividir PDF")
+        self.config_tab_ui = self.tabview.add("Configurar")
 
         # Add functionality to tabs
-        VideoSplitTab(self.split_tab).pack(fill="both", expand=True)
-        VideoJoinTab(self.join_tab).pack(fill="both", expand=True)
-        VideoConvertTab(self.convert_tab).pack(fill="both", expand=True)
-        VideoToImagesTab(self.movie_to_img_tab).pack(fill="both", expand=True)
-        VideoResizeTab(self.resize_tab).pack(fill="both", expand=True)
-        PDFSplitTab(self.pdf_tab).pack(fill="both", expand=True)
+        VideoSplitTab(self.split_tab, self.config_manager).pack(fill="both", expand=True)
+        VideoJoinTab(self.join_tab, self.config_manager).pack(fill="both", expand=True)
+        VideoConvertTab(self.convert_tab, self.config_manager).pack(fill="both", expand=True)
+        VideoToImagesTab(self.movie_to_img_tab, self.config_manager).pack(fill="both", expand=True)
+        VideoResizeTab(self.resize_tab, self.config_manager).pack(fill="both", expand=True)
+        PDFSplitTab(self.pdf_tab, self.config_manager).pack(fill="both", expand=True)
+        ConfigTab(self.config_tab_ui, self.config_manager).pack(fill="both", expand=True)
 
 
 if __name__ == "__main__":

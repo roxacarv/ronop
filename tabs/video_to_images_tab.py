@@ -10,11 +10,13 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image, ImageTk
 
 class FrameRearrangeWindow(ctk.CTkToplevel):
-    def __init__(self, parent, selected_frames):
+    def __init__(self, parent, selected_frames, config_manager=None, last_dir=""):
         super().__init__(parent)
         self.title("Reordenar Quadros")
         self.geometry("600x700")
         self.selected_frames = selected_frames  # List of dicts: {"image": PIL.Image, "name": str}
+        self.config_manager = config_manager
+        self.last_dir = last_dir
         
         self.label = ctk.CTkLabel(self, text="Organize os quadros e exporte", font=("Arial", 16, "bold"))
         self.label.pack(pady=15)
@@ -73,7 +75,12 @@ class FrameRearrangeWindow(ctk.CTkToplevel):
             self.destroy()
 
     def save_as_zip(self):
-        output_file = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Vídeo -> Imagens") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".zip", 
+            filetypes=[("ZIP files", "*.zip")]
+        )
         if not output_file:
             return
         
@@ -99,10 +106,12 @@ class FrameRearrangeWindow(ctk.CTkToplevel):
 
 
 class VideoToImagesTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self) # Initialize DnDWrapper explicitly
+        self.config_manager = config_manager
         self.video_path = None
+        self.last_dir = ""
         self.temp_dir = None
         self.frames_data = [] # List of dicts: {"image": PIL.Image, "name": str}
         self.selected_indices = []
@@ -136,15 +145,21 @@ class VideoToImagesTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         if file_path.startswith('{') and file_path.endswith('}'):
             file_path = file_path[1:-1]
         self.video_path = file_path
+        self.last_dir = os.path.dirname(file_path)
         self.status_label.configure(text=os.path.basename(file_path))
         self.extract_frames()
 
     def load_video(self):
-        file = filedialog.askopenfilename(filetypes=[("Vídeos/GIFs", "*.mp4 *.gif *.mov *.avi *.webm"), ("Todos", "*.*")])
+        initial_dir = self.config_manager.get_default_folder("Vídeo -> Imagens") if self.config_manager else ""
+        file = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("Vídeos/GIFs", "*.mp4 *.gif *.mov *.avi *.webm"), ("Todos", "*.*")]
+        )
         if not file:
             return
         
         self.video_path = file
+        self.last_dir = os.path.dirname(file)
         self.status_label.configure(text=os.path.basename(file))
         self.extract_frames()
 
@@ -229,7 +244,7 @@ class VideoToImagesTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             return
         
         selected_data = [self.frames_data[i] for i in self.selected_indices]
-        FrameRearrangeWindow(self, selected_data)
+        FrameRearrangeWindow(self, selected_data, self.config_manager, self.last_dir)
 
     def __del__(self):
         # Limpar temp dir quando o objeto for destruído

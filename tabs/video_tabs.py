@@ -5,12 +5,14 @@ from tkinter import filedialog, messagebox
 from tkinterdnd2 import TkinterDnD, DND_FILES
 
 class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self)
+        self.config_manager = config_manager
         self.split_file_var = ctk.StringVar()
         self.start_time_var = ctk.StringVar()
         self.end_time_var = ctk.StringVar()
+        self.last_dir = ""
 
         ctk.CTkLabel(self, text="Arquivo de entrada:").pack(pady=(20, 5))
         ctk.CTkEntry(self, textvariable=self.split_file_var, width=400).pack()
@@ -36,12 +38,17 @@ class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         self.load_video_metadata(file_path)
 
     def load_video_for_split(self):
-        file = filedialog.askopenfilename(filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")])
+        initial_dir = self.config_manager.get_default_folder("Dividir Vídeo") if self.config_manager else ""
+        file = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")]
+        )
         if file:
             self.load_video_metadata(file)
 
     def load_video_metadata(self, file):
         self.split_file_var.set(file)
+        self.last_dir = os.path.dirname(file)
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
@@ -67,7 +74,12 @@ class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             messagebox.showerror("Erro", "Preencha todos os campos.")
             return
 
-        output_file = filedialog.asksaveasfilename(defaultextension=".mp4", filetypes=[("MP4 files", "*.mp4")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Dividir Vídeo") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".mp4", 
+            filetypes=[("MP4 files", "*.mp4")]
+        )
         if not output_file:
             return
 
@@ -84,10 +96,12 @@ class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
 
 
 class VideoJoinTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self)
+        self.config_manager = config_manager
         self.join_files = []
+        self.last_dir = ""
 
         ctk.CTkLabel(self, text="Selecione os vídeos para juntar:").pack(pady=10)
         ctk.CTkButton(self, text="Adicionar vídeos", command=self.add_join_files).pack(pady=5)
@@ -115,9 +129,14 @@ class VideoJoinTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
                 self.join_listbox.insert("end", f + "\n")
 
     def add_join_files(self):
-        files = filedialog.askopenfilenames(filetypes=[("Vídeos MP4", "*.mp4")])
+        initial_dir = self.config_manager.get_default_folder("Juntar Vídeos") if self.config_manager else ""
+        files = filedialog.askopenfilenames(
+            initialdir=initial_dir,
+            filetypes=[("Vídeos MP4", "*.mp4")]
+        )
         if files:
             self.join_files.extend(files)
+            self.last_dir = os.path.dirname(files[0])
             self.join_listbox.delete("1.0", "end")
             for f in self.join_files:
                 self.join_listbox.insert("end", f + "\n")
@@ -127,7 +146,12 @@ class VideoJoinTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             messagebox.showerror("Erro", "Adicione pelo menos dois vídeos para juntar.")
             return
 
-        output_file = filedialog.asksaveasfilename(defaultextension=".mp4", filetypes=[("MP4 files", "*.mp4")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Juntar Vídeos") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".mp4", 
+            filetypes=[("MP4 files", "*.mp4")]
+        )
         if not output_file:
             return
 
@@ -150,13 +174,15 @@ class VideoJoinTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
 
 
 class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self)
+        self.config_manager = config_manager
         self.convert_file_var = ctk.StringVar()
         self.convert_start_var = ctk.StringVar(value="00:00:00")
         self.convert_end_var = ctk.StringVar()
         self.format_var = ctk.StringVar(value="GIF")
+        self.last_dir = ""
 
         ctk.CTkLabel(self, text="Arquivo de entrada:").pack(pady=(20, 5))
         ctk.CTkEntry(self, textvariable=self.convert_file_var, width=400).pack()
@@ -185,12 +211,17 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         self.load_video_metadata(file_path)
 
     def load_video_for_convert(self):
-        file = filedialog.askopenfilename(filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")])
+        initial_dir = self.config_manager.get_default_folder("Converter Formatos") if self.config_manager else ""
+        file = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")]
+        )
         if file:
             self.load_video_metadata(file)
 
     def load_video_metadata(self, file):
         self.convert_file_var.set(file)
+        self.last_dir = os.path.dirname(file)
         try:
             result = subprocess.run(
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
@@ -227,7 +258,12 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         else:
             return
 
-        output_file = filedialog.asksaveasfilename(defaultextension=ext, filetypes=[file_type])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Converter Formatos") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=ext, 
+            filetypes=[file_type]
+        )
         if not output_file:
             return
 

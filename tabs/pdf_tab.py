@@ -8,13 +8,15 @@ from tkinterdnd2 import TkinterDnD, DND_FILES
 from PIL import Image, ImageTk
 
 class RearrangeWindow(ctk.CTkToplevel):
-    def __init__(self, parent, selected_pages, pdf_path):
+    def __init__(self, parent, selected_pages, pdf_path, config_manager=None, last_dir=""):
         super().__init__(parent)
         self.title("Reordenar Páginas")
         self.geometry("600x700")
         self.parent = parent
         self.pdf_path = pdf_path
         self.selected_pages = selected_pages  # List of page indices
+        self.config_manager = config_manager
+        self.last_dir = last_dir
         
         self.label = ctk.CTkLabel(self, text="Organize as páginas e escolha o formato de saída", font=("Arial", 16, "bold"))
         self.label.pack(pady=15)
@@ -83,7 +85,12 @@ class RearrangeWindow(ctk.CTkToplevel):
             self.destroy()
 
     def save_as_pdf(self):
-        output_file = filedialog.asksaveasfilename(defaultextension=".pdf", filetypes=[("PDF files", "*.pdf")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Dividir PDF") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".pdf", 
+            filetypes=[("PDF files", "*.pdf")]
+        )
         if not output_file:
             return
         
@@ -105,7 +112,12 @@ class RearrangeWindow(ctk.CTkToplevel):
             messagebox.showerror("Erro", f"Falha ao salvar PDF: {e}")
 
     def save_as_zip(self):
-        output_file = filedialog.asksaveasfilename(defaultextension=".zip", filetypes=[("ZIP files", "*.zip")])
+        initial_dir = self.last_dir or (self.config_manager.get_default_folder("Dividir PDF") if self.config_manager else "")
+        output_file = filedialog.asksaveasfilename(
+            initialdir=initial_dir,
+            defaultextension=".zip", 
+            filetypes=[("ZIP files", "*.zip")]
+        )
         if not output_file:
             return
 
@@ -169,10 +181,12 @@ class ZoomModal(ctk.CTkToplevel):
 
 
 class PDFSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
-    def __init__(self, master):
+    def __init__(self, master, config_manager=None):
         super().__init__(master)
         TkinterDnD.DnDWrapper.__init__(self)
+        self.config_manager = config_manager
         self.pdf_file_path = None
+        self.last_dir = ""
         self.selected_indices = []
         self.thumbnail_frames = {}
 
@@ -200,6 +214,7 @@ class PDFSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         
         # Manually load the PDF
         self.pdf_file_path = file_path
+        self.last_dir = os.path.dirname(file_path)
         self.selected_indices = []
         self.pdf_status_label.configure(text=os.path.basename(file_path))
         self.btn_next_pdf.configure(state="disabled")
@@ -240,11 +255,16 @@ class PDFSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             messagebox.showerror("Erro", f"Erro ao abrir PDF: {e}")
 
     def load_pdf_for_split(self):
-        file = filedialog.askopenfilename(filetypes=[("Arquivos PDF", "*.pdf")])
+        initial_dir = self.config_manager.get_default_folder("Dividir PDF") if self.config_manager else ""
+        file = filedialog.askopenfilename(
+            initialdir=initial_dir,
+            filetypes=[("Arquivos PDF", "*.pdf")]
+        )
         if not file:
             return
         
         self.pdf_file_path = file
+        self.last_dir = os.path.dirname(file)
         self.selected_indices = []
         self.pdf_status_label.configure(text=os.path.basename(file))
         self.btn_next_pdf.configure(state="disabled")
@@ -299,7 +319,7 @@ class PDFSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
     def open_rearrange_window(self):
         if not self.pdf_file_path or not self.selected_indices:
             return
-        RearrangeWindow(self, list(self.selected_indices), self.pdf_file_path)
+        RearrangeWindow(self, list(self.selected_indices), self.pdf_file_path, self.config_manager, self.last_dir)
 
     def show_page_zoom(self, page_idx):
         if not self.pdf_file_path:
