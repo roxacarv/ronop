@@ -182,6 +182,7 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         self.convert_start_var = ctk.StringVar(value="00:00:00")
         self.convert_end_var = ctk.StringVar()
         self.format_var = ctk.StringVar(value="GIF")
+        self.compression_var = ctk.StringVar(value="Maior tamanho, qualidade original (Sem compressão)")
         self.last_dir = ""
 
         ctk.CTkLabel(self, text="Arquivo de entrada:").pack(pady=(20, 5))
@@ -196,7 +197,10 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         ctk.CTkEntry(frame_time, textvariable=self.convert_end_var, width=120).grid(row=0, column=3)
 
         ctk.CTkLabel(self, text="Formato de saída:").pack(pady=(10, 5))
-        ctk.CTkOptionMenu(self, variable=self.format_var, values=["GIF", "WebM", "MP3"]).pack(pady=5)
+        ctk.CTkOptionMenu(self, variable=self.format_var, values=["GIF", "WebM", "MP3", "MP4", "AVI", "OGG"]).pack(pady=5)
+
+        ctk.CTkLabel(self, text="Compressão de Vídeo/Áudio:").pack(pady=(10, 5))
+        ctk.CTkComboBox(self, variable=self.compression_var, width=450, values=["Maior tamanho, qualidade original (Sem compressão)", "Tamanho médio, qualidade média (50%)", "Menor tamanho, baixa qualidade (90%)"]).pack(pady=5)
 
         ctk.CTkButton(self, text="Converter", command=self.convert_video).pack(pady=15)
 
@@ -255,6 +259,12 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             ext, file_type = ".webm", ("WebM", "*.webm")
         elif output_format == "MP3":
             ext, file_type = ".mp3", ("MP3", "*.mp3")
+        elif output_format == "MP4":
+            ext, file_type = ".mp4", ("MP4", "*.mp4")
+        elif output_format == "AVI":
+            ext, file_type = ".avi", ("AVI", "*.avi")
+        elif output_format == "OGG":
+            ext, file_type = ".ogg", ("OGG", "*.ogg")
         else:
             return
 
@@ -272,12 +282,40 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
                 return
 
         cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start, "-to", end]
+        
+        compression_str = self.compression_var.get()
+        import re
+        percent_match = re.search(r'(\d+)%', compression_str)
+        percent = 0
+        if "50%" in compression_str:
+            percent = 50
+        elif "90%" in compression_str:
+            percent = 90
+        elif percent_match:
+            percent = int(percent_match.group(1))
+
         if output_format == "GIF":
             cmd.extend(["-vf", "fps=10,scale=480:-1:flags=lanczos", "-loop", "0"])
         elif output_format == "WebM":
-            cmd.extend(["-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "30", "-c:a", "libvorbis"])
+            cmd.extend(["-c:v", "libvpx-vp9", "-b:v", "0"])
+            crf_val = 30 + (percent / 100.0) * (50 - 30)
+            cmd.extend(["-crf", str(int(crf_val)), "-c:a", "libvorbis"])
         elif output_format == "MP3":
-            cmd.extend(["-vn", "-acodec", "libmp3lame", "-q:a", "2"])
+            cmd.extend(["-vn", "-acodec", "libmp3lame"])
+            qa_val = 2 + (percent / 100.0) * (8 - 2)
+            cmd.extend(["-q:a", str(int(qa_val))])
+        elif output_format == "MP4":
+            cmd.extend(["-c:v", "libx264"])
+            crf_val = 18 + (percent / 100.0) * (40 - 18)
+            cmd.extend(["-crf", str(int(crf_val)), "-c:a", "aac", "-b:a", "128k"])
+        elif output_format == "AVI":
+            cmd.extend(["-c:v", "mpeg4"])
+            qv_val = 2 + (percent / 100.0) * (25 - 2)
+            cmd.extend(["-q:v", str(int(qv_val)), "-c:a", "libmp3lame"])
+        elif output_format == "OGG":
+            cmd.extend(["-c:v", "libtheora"])
+            qv_val = 8 - (percent / 100.0) * (8 - 1)
+            cmd.extend(["-q:v", str(int(qv_val)), "-c:a", "libvorbis"])
         cmd.append(output_file)
 
         try:
