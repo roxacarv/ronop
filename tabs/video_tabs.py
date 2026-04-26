@@ -57,10 +57,10 @@ class VideoSplitTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             duration = float(result.stdout.strip())
             hours = int(duration // 3600)
             minutes = int((duration % 3600) // 60)
-            seconds = int(duration % 60)
-            formatted_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            seconds = duration % 60
+            formatted_duration = f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
 
-            self.start_time_var.set("00:00:00")
+            self.start_time_var.set("00:00:00.000")
             self.end_time_var.set(formatted_duration)
             messagebox.showinfo("Vídeo carregado", f"Duração: {formatted_duration}")
         except Exception as e:
@@ -179,7 +179,7 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         TkinterDnD.DnDWrapper.__init__(self)
         self.config_manager = config_manager
         self.convert_file_var = ctk.StringVar()
-        self.convert_start_var = ctk.StringVar(value="00:00:00")
+        self.convert_start_var = ctk.StringVar(value="00:00:00.000")
         self.convert_end_var = ctk.StringVar()
         self.format_var = ctk.StringVar(value="GIF")
         self.compression_var = ctk.StringVar(value="Maior tamanho, qualidade original (Sem compressão)")
@@ -218,7 +218,7 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         initial_dir = self.config_manager.get_default_folder("Converter Formatos") if self.config_manager else ""
         file = filedialog.askopenfilename(
             initialdir=initial_dir,
-            filetypes=[("Vídeos MP4", "*.mp4"), ("Todos os arquivos", "*.*")]
+            filetypes=[("Arquivos de Mídia", "*.mp4 *.gif"), ("Vídeos MP4", "*.mp4"), ("Arquivos GIF", "*.gif"), ("Todos os arquivos", "*.*")]
         )
         if file:
             self.load_video_metadata(file)
@@ -231,17 +231,32 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
                 ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
             )
-            duration = float(result.stdout.strip())
-            hours = int(duration // 3600)
-            minutes = int((duration % 3600) // 60)
-            seconds = int(duration % 60)
-            formatted_duration = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+            out_strip = result.stdout.strip()
+            if not out_strip or out_strip == 'N/A':
+                result = subprocess.run(
+                    ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=duration", "-of", "default=noprint_wrappers=1:nokey=1", file],
+                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                out_strip = result.stdout.strip().split('\n')[0] if result.stdout.strip() else ""
 
-            self.convert_start_var.set("00:00:00")
-            self.convert_end_var.set(formatted_duration)
-            messagebox.showinfo("Vídeo carregado", f"Duração: {formatted_duration}")
+            if not out_strip or out_strip == 'N/A':
+                formatted_duration = ""
+            else:
+                duration = float(out_strip)
+                hours = int(duration // 3600)
+                minutes = int((duration % 3600) // 60)
+                seconds = duration % 60
+                formatted_duration = f"{hours:02d}:{minutes:02d}:{seconds:06.3f}"
+
+            self.convert_start_var.set("00:00:00.000")
+            if formatted_duration:
+                self.convert_end_var.set(formatted_duration)
+                messagebox.showinfo("Arquivo carregado", f"Duração: {formatted_duration}")
+            else:
+                self.convert_end_var.set("")
+                messagebox.showinfo("Arquivo carregado", "Duração desconhecida. Você pode converter o arquivo inteiro.")
         except Exception as e:
-            messagebox.showerror("Erro", f"Não foi possível ler o vídeo:\n{e}")
+            messagebox.showerror("Erro", f"Não foi possível ler o arquivo:\n{e}")
 
     def convert_video(self):
         input_file = self.convert_file_var.get()
@@ -249,8 +264,8 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         end = self.convert_end_var.get()
         output_format = self.format_var.get()
 
-        if not input_file or not end:
-            messagebox.showerror("Erro", "Selecione o vídeo e informe os tempos.")
+        if not input_file:
+            messagebox.showerror("Erro", "Selecione o arquivo de entrada.")
             return
 
         if output_format == "GIF":
@@ -281,7 +296,11 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             if not messagebox.askyesno("Arquivo existe", f"{output_file} já existe. Deseja sobrescrever?"):
                 return
 
-        cmd = ["ffmpeg", "-y", "-i", input_file, "-ss", start, "-to", end]
+        cmd = ["ffmpeg", "-y", "-i", input_file]
+        if start and start not in ["00:00:00", "00:00:00.000"]:
+            cmd.extend(["-ss", start])
+        if end:
+            cmd.extend(["-to", end])
         
         compression_str = self.compression_var.get()
         import re
@@ -297,7 +316,7 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
         if output_format == "GIF":
             cmd.extend(["-vf", "fps=10,scale=480:-1:flags=lanczos", "-loop", "0"])
         elif output_format == "WebM":
-            cmd.extend(["-c:v", "libvpx-vp9", "-b:v", "0"])
+            cmd.extend(["-c:v", "libvpx-vp9", "-b:v", "0", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"])
             crf_val = 30 + (percent / 100.0) * (50 - 30)
             cmd.extend(["-crf", str(int(crf_val)), "-c:a", "libvorbis"])
         elif output_format == "MP3":
@@ -305,15 +324,15 @@ class VideoConvertTab(ctk.CTkFrame, TkinterDnD.DnDWrapper):
             qa_val = 2 + (percent / 100.0) * (8 - 2)
             cmd.extend(["-q:a", str(int(qa_val))])
         elif output_format == "MP4":
-            cmd.extend(["-c:v", "libx264"])
+            cmd.extend(["-c:v", "libx264", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"])
             crf_val = 18 + (percent / 100.0) * (40 - 18)
             cmd.extend(["-crf", str(int(crf_val)), "-c:a", "aac", "-b:a", "128k"])
         elif output_format == "AVI":
-            cmd.extend(["-c:v", "mpeg4"])
+            cmd.extend(["-c:v", "mpeg4", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"])
             qv_val = 2 + (percent / 100.0) * (25 - 2)
             cmd.extend(["-q:v", str(int(qv_val)), "-c:a", "libmp3lame"])
         elif output_format == "OGG":
-            cmd.extend(["-c:v", "libtheora"])
+            cmd.extend(["-c:v", "libtheora", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2"])
             qv_val = 8 - (percent / 100.0) * (8 - 1)
             cmd.extend(["-q:v", str(int(qv_val)), "-c:a", "libvorbis"])
         cmd.append(output_file)
