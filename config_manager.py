@@ -12,7 +12,8 @@ class ConfigManager:
             "Converter Formatos": "",
             "Vídeo -> Imagens": "",
             "Redimensionar (Crop)": "",
-            "Dividir PDF": ""
+            "Dividir PDF": "",
+            "Rotacionar Vídeo": ""
         }
     }
 

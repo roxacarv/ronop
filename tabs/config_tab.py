@@ -36,7 +36,8 @@ class ConfigTab(ctk.CTkFrame):
             "Converter Formatos", 
             "Vídeo -> Imagens", 
             "Redimensionar (Crop)", 
-            "Dividir PDF"
+            "Dividir PDF",
+            "Rotacionar Vídeo"
         ]
 
         for tab_name in tabs:

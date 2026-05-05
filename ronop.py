@@ -4,6 +4,7 @@ from tabs.video_tabs import VideoSplitTab, VideoJoinTab, VideoConvertTab
 from tabs.pdf_tab import PDFSplitTab
 from tabs.video_to_images_tab import VideoToImagesTab
 from tabs.video_resize_tab import VideoResizeTab
+from tabs.video_rotate_tab import VideoRotateTab
 
 from config_manager import ConfigManager
 from tabs.config_tab import ConfigTab
@@ -31,6 +32,7 @@ class FFmpegGUI(ctk.CTk, TkinterDnD.DnDWrapper):
         self.convert_tab = self.tabview.add("Converter Formatos")
         self.movie_to_img_tab = self.tabview.add("Vídeo -> Imagens")
         self.resize_tab = self.tabview.add("Redimensionar (Crop)")
+        self.rotate_tab = self.tabview.add("Rotacionar Vídeo")
         self.pdf_tab = self.tabview.add("Dividir PDF")
         self.config_tab_ui = self.tabview.add("Configurar")
 
@@ -40,6 +42,7 @@ class FFmpegGUI(ctk.CTk, TkinterDnD.DnDWrapper):
         VideoConvertTab(self.convert_tab, self.config_manager).pack(fill="both", expand=True)
         VideoToImagesTab(self.movie_to_img_tab, self.config_manager).pack(fill="both", expand=True)
         VideoResizeTab(self.resize_tab, self.config_manager).pack(fill="both", expand=True)
+        VideoRotateTab(self.rotate_tab, self.config_manager).pack(fill="both", expand=True)
         PDFSplitTab(self.pdf_tab, self.config_manager).pack(fill="both", expand=True)
         ConfigTab(self.config_tab_ui, self.config_manager).pack(fill="both", expand=True)
 
